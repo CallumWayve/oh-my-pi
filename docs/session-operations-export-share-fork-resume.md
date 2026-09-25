@@ -95,7 +95,7 @@ No session persistence entries are appended by dumping.
 `/share` publishes an end-to-end encrypted snapshot of the session and prints
 a viewer link. Implementation: [`../packages/coding-agent/src/export/share.ts`](../packages/coding-agent/src/export/share.ts).
 
-`share.enabled: false` blocks `/share` (including custom TUI share handlers) and `omp share` before they export or upload a snapshot. It defaults to `true`; administrators can enforce `false` through the [machine-managed settings file](./config-usage.md#4-settings-resolution-model-srcconfigsettingsts), overriding project, user, CLI, and runtime settings.
+Set `share.enabled: false` to block `/share` (including custom TUI handlers) and `omp share` before export or upload. The default is `true`.
 
 ### TUI phase 1: custom share handler (if present)
 

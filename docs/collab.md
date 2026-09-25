@@ -47,7 +47,7 @@ Explicit `/collab stop` and `/leave` also cancel any replacement already queued 
 
 Dedicated joins retain session-change observation: a failed join returns to the saved auto-start policy immediately, and `/leave` or host disconnection restores automatic hosting for the local session and its later replacements. Remote replica resynchronization never starts a local host.
 
-Set `collab.enabled: false` in settings to prevent hosting and joining collaboration sessions. This also suppresses `collab.autoStart` even if it remains set to `view` or `control`; disabling it during a live room stops the host or disconnects the guest. Local discovery (`/collab list`, `omp collab list`, and `omp collab link`) is unavailable while disabled; `/collab stop` and `/leave` still clean up. An administrator can enforce the value through the [machine-managed config](./config-usage.md#4-settings-resolution-model-srcconfigsettingsts), which takes precedence over user and project settings.
+Set `collab.enabled: false` to disable hosting, joining, auto-start, and local host discovery. An active room stops or disconnects; `/collab stop` and `/leave` remain available. The default is `true`.
 
 An explicit `omp join <link>` launch takes precedence over auto-start: it initializes as a guest without publishing a temporary local host, and leaves the saved auto-start setting unchanged. If interactive startup fails after a host has been installed, that room is shut down and withdrawn before terminal teardown and the startup error is rethrown.
 

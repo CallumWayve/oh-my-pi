@@ -166,24 +166,13 @@ Outside machine policy, a configured value that does not fit the declared type (
 
 Effective precedence, highest first:
 
-1. Machine-managed `config.yml` (when deployed): `/etc/omp/config.yml` on Linux, `/Library/Application Support/omp/config.yml` on macOS, `%ProgramData%\omp\config.yml` on Windows. This read-only layer applies to every profile and project, including subagents and CLI commands, and overrides runtime values and per-setting environment variables.
+1. Machine-managed `config.yml` (optional, read-only): `/etc/omp/config.yml` on Linux, `/Library/Application Support/omp/config.yml` on macOS, `%ProgramData%\omp\config.yml` on Windows. It overrides every other layer, including environment variables.
 2. Environment variable declared on the definition (`env: "NAME"`), parsed by the setting's type; unparseable text counts as unset. Booleans follow `parseFlag`: empty is unset, `1`/`y`/`true`/`yes`/`on` (lower or upper case) is true, any other text is false
 3. Runtime overrides: in-memory, non-persistent
 4. Config overlays: `PI_CONFIG_FILES` (platform path-list), followed by repeated `omp --config <path>` files; all are loaded as `config.yml`-style YAML for this process only
 5. Project settings: discovered via the settings capability (`settings.json` and `config.yml` from providers)
 6. Global settings: the first present file among `~/.omp/agent/config.yml` and `config.yaml`
 7. Definition default
-
-To prohibit both ways of publishing sessions, deploy this mapping in the machine file:
-
-```yaml
-share:
-  enabled: false
-collab:
-  enabled: false
-```
-
-`share.enabled: false` blocks `/share`, `omp share`, and custom TUI share handlers; `collab.enabled: false` blocks hosting, joining, auto-start, and CLI collab discovery. Each defaults to `true` when unspecified. An absent machine file has no effect. Malformed, unknown, or invalid machine settings fail startup rather than falling through to user config; live reload retains the last good policy when a replacement is invalid. User-level writes never modify the machine file.
 
 A definition may instead declare `env: { name, fallback: true }`: that variable only replaces the default, and any layer configuring a non-null value wins over it (used by `SEARXNG_BASIC_*`). `fallback: "blank"` also lets the variable win over a configured empty or whitespace string (used by `SEARXNG_ENDPOINT`, `SEARXNG_TOKEN`, and `MNEMOPI_EMBEDDING_MODEL`).
 
@@ -199,7 +188,7 @@ Machine, project, and config overlay settings are read-only from the settings AP
 
 - Missing global/project YAML is treated as empty configuration.
 - Invalid global or native-project YAML is moved to a unique `.broken-<timestamp>-<pid>-<uuid>` sibling under a file lock, then startup fails with the original and backup paths. An unreadable file fails without being moved.
-- Machine-managed YAML is read-only: missing means no policy; invalid or unreadable content fails startup, and a watcher keeps its last good layer on subsequent failures.
+- Missing machine-managed YAML means no policy; malformed, unknown, invalid, or unreadable content fails startup, while watcher reloads retain the last good policy.
 - Every `PI_CONFIG_FILES` / `--config` overlay is strict: missing files, invalid YAML, and non-mapping document roots are hard errors. Overlay files are not quarantined.
 
 ## Migration behavior still active
