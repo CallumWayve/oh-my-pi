@@ -1299,6 +1299,7 @@ export class Settings {
 			this.#managed = layers.managed;
 			this.#project = layers.project;
 			this.#configOverlay = layers.configOverlay;
+			this.#overrides = layers.overrides;
 			for (const setting of settled) this.#softPins.delete(setting);
 			this.#rebuildMerged();
 			this.#fireChangesSince(previous);
