@@ -9,10 +9,12 @@ use napi_derive::napi;
 mod windows {
 	use std::{ffi::c_void, slice};
 
-	use windows_sys::Win32::{
-		System::Com::CoTaskMemFree,
-		UI::Shell::{FOLDERID_ProgramData, SHGetKnownFolderPath},
-	};
+	use windows_sys::Win32::UI::Shell::{FOLDERID_ProgramData, SHGetKnownFolderPath};
+
+	#[link(name = "ole32")]
+	unsafe extern "system" {
+		fn CoTaskMemFree(ptr: *const c_void);
+	}
 
 	/// Get the machine-wide ProgramData directory.
 	///
