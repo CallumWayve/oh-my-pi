@@ -537,8 +537,8 @@ export class Setting<T, Id extends string = string> extends Derived<T> {
 
 	override get(scope: ScopeLike): T {
 		const settings = settingsOf(scope);
-		// Environment variables cannot override managed (machine policy) settings
-		if (settings.getProvenance(this) === "managed") return super.get(scope);
+		// Machine policy takes precedence without walking provenance on each read.
+		if (settings.isManaged(this)) return super.get(scope);
 		return this.#effectiveEnv(scope) ?? super.get(scope);
 	}
 
@@ -792,11 +792,10 @@ export class Setting<T, Id extends string = string> extends Derived<T> {
 
 	/** Layer supplying the effective value. */
 	provenance(scope: ScopeLike): SettingProvenance {
-		const layeredProvenance = settingsOf(scope).getProvenance(this);
-		// If value comes from managed layer, it cannot be overridden by env
-		if (layeredProvenance === "managed") return "managed";
-		// Otherwise, env can override if set
-		return this.#effectiveEnv(scope) !== undefined ? "env" : layeredProvenance;
+		const settings = settingsOf(scope);
+		if (settings.isManaged(this)) return "managed";
+		if (this.#effectiveEnv(scope) !== undefined) return "env";
+		return settings.getProvenance(this);
 	}
 }
 

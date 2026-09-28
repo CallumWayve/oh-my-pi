@@ -26,6 +26,7 @@ import {
 	MAIN_CONFIG_FILENAMES,
 	procmgr,
 } from "@oh-my-pi/pi-utils";
+import { machineProgramDataDir } from "@oh-my-pi/pi-natives";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { isLightTheme } from "@oh-my-pi/pi-tui/theme/theme";
 import { JSONC, YAML } from "bun";
@@ -269,6 +270,24 @@ function assertKnownSettingPaths(layer: RawSettings, prefix = ""): void {
 	}
 }
 
+/** Ignore settings introduced by newer clients without letting unknown group leaves shadow known policy. */
+function knownManagedSettings(layer: RawSettings, source: string, prefix = ""): RawSettings {
+	const known: RawSettings = {};
+	for (const key of Object.keys(layer)) {
+		const id = prefix ? `${prefix}.${key}` : key;
+		const value = layer[key];
+		if (lookupSetting(id)) {
+			known[key] = value;
+		} else if (isRecord(value) && Object.hasOwn(settingsGroupOnlyPrefixes(), id)) {
+			const group = knownManagedSettings(value, source, id);
+			if (Object.keys(group).length > 0) known[key] = group;
+		} else {
+			logger.warn("Settings: ignoring unknown machine policy setting", { path: id, source });
+		}
+	}
+	return known;
+}
+
 /** `project` as it merges over the global layer: `null` (cleared) model roles fall back to global. */
 function projectLayerForMerge(project: RawSettings): RawSettings {
 	const projectRoles = getByPath(project, ["modelRoles"]);
@@ -297,7 +316,7 @@ interface LayerRefresh {
 	layer: "global" | "project" | "configOverlay" | "managed";
 	settings: RawSettings;
 	source: string;
-	commit?(): void;
+	commit(): void;
 }
 
 /**
@@ -376,7 +395,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Get the platform-specific path to the machine policy config.
  * Linux: /etc/omp/config.yml
  * macOS: /Library/Application Support/omp/config.yml (system, not user-writable)
- * Windows: %ProgramData%/omp/config.yml
+ * Windows: ProgramData known folder/omp/config.yml (resolved by the OS)
  */
 function getManagedConfigPath(): string {
 	switch (process.platform) {
@@ -384,10 +403,8 @@ function getManagedConfigPath(): string {
 			return "/etc/omp/config.yml";
 		case "darwin":
 			return path.join("/Library", "Application Support", "omp", "config.yml");
-		case "win32": {
-			const programData = process.env.ProgramData || path.join(process.env.SYSTEMDRIVE || "C:", "ProgramData");
-			return path.join(programData, "omp", "config.yml");
-		}
+		case "win32":
+			return path.join(machineProgramDataDir(), "omp", "config.yml");
 		default:
 			return `/etc/omp/config.yml`;
 	}
@@ -869,16 +886,20 @@ export class Settings {
 		return value !== undefined && value !== null;
 	}
 
+	/** Whether machine policy fixes this setting's value in this instance or any overlay. */
+	isManaged(setting: AnySetting): boolean {
+		return getByPath(this.#managedLayer(), setting.segments) != null;
+	}
+
 	/**
 	 * Layer supplying the effective value of `setting`, in merge precedence order:
 	 * machine policy → runtime override → config overlay → project → global →
 	 * (overlay parent) → schema default. A value that merges to `null` is unset.
 	 */
 	getProvenance(setting: AnySetting): SettingProvenance {
+		if (this.isManaged(setting)) return "managed";
 		if (!this.isConfigured(setting)) return "default";
 		const segments = setting.segments;
-		if (getByPath(this.#managed, segments) !== undefined || this.#parent?.getProvenance(setting) === "managed")
-			return "managed";
 		if (getByPath(this.#overrides, segments) !== undefined) return "runtime";
 		if (getByPath(this.#configOverlay, segments) !== undefined) return "overlay";
 		if (getByPath(projectLayerForMerge(this.#project), segments) !== undefined) return "project";
@@ -1267,6 +1288,7 @@ export class Settings {
 		cloned.#global = structuredClone(this.#global);
 		cloned.#managed = structuredClone(this.#managed);
 		cloned.#configOverlay = structuredClone(this.#configOverlay);
+		// A soft-pinned default yields to a value the clone's own scope configures.
 		cloned.#softPins = new Set(this.#softPins);
 		const layers = { ...cloned.#ownLayers(), overrides: this.#buildOriginalOverrides() };
 		for (const setting of cloned.#settlePins(layers)) cloned.#softPins.delete(setting);
@@ -1373,6 +1395,7 @@ export class Settings {
 					layer: "managed",
 					settings: managedResult.value,
 					source: this.#managedConfigPath,
+					commit: () => {},
 				});
 			}
 
@@ -1391,7 +1414,7 @@ export class Settings {
 			if (!keepLastGood) this.#validateAll(this.#mergeOverParent(this.#mergeOwnLayers(layers)), this.#cwd);
 
 			const previous = this.#snapshot();
-			for (const refresh of adopted) refresh.commit?.();
+			for (const refresh of adopted) refresh.commit();
 			this.#global = layers.global;
 			this.#managed = layers.managed;
 			this.#project = layers.project;
@@ -1874,14 +1897,14 @@ export class Settings {
 			if (loaded.kind === "missing") return {};
 			throw new Error(`Machine policy config ${this.#managedConfigPath} failed to load: ${String(loaded.error)}`);
 		}
-		this.#validateManagedSettings(loaded.settings);
-		return loaded.settings;
+		const managed = knownManagedSettings(loaded.settings, this.#managedConfigPath);
+		this.#validateManagedSettings(managed);
+		return managed;
 	}
 
 	/** A malformed policy must not silently fall through to a lower, potentially less restrictive layer. */
 	#validateManagedSettings(managed: RawSettings): void {
 		try {
-			assertKnownSettingPaths(managed);
 			for (const setting of allSettings()) {
 				const value = getByPath(managed, setting.segments);
 				if (value !== undefined) setting.assertWritable(value);
@@ -1890,6 +1913,7 @@ export class Settings {
 			throw new Error(`Invalid machine policy config ${this.#managedConfigPath}: ${String(error)}`);
 		}
 	}
+
 	async #loadReadOnly(): Promise<Settings> {
 		const [globalResult, projectResult, managedResult] = await Promise.allSettled([
 			this.#loadExistingMainYaml(),
@@ -3780,6 +3804,7 @@ export class Settings {
 		if (this.#parent) this.#syncedParentRevision = this.#parent.revision;
 		this.#merged = this.#mergeOverParent(this.#mergeOwnLayers(this.#ownLayers()));
 	}
+
 	#ownLayers(): OwnLayers {
 		return {
 			managed: this.#managed,
@@ -3789,6 +3814,7 @@ export class Settings {
 			overrides: this.#overrides,
 		};
 	}
+
 	/** `layers` (global, project, `--config` overlay, runtime, managed) merged in precedence order. */
 	#mergeOwnLayers(layers: OwnLayers): RawSettings {
 		let merged = this.#deepMerge(this.#deepMerge({}, layers.global), projectLayerForMerge(layers.project));

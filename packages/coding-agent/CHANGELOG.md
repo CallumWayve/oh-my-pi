@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+### Breaking Changes
+
+- `shareSession` now requires `settings` in its options to enforce sharing policy ([#13284](https://github.com/can1357/oh-my-pi/pull/13284) by [@CallumWayve](https://github.com/CallumWayve)).
+
+### Added
+
+- Administrators can lock settings with a machine-managed `config.yml` that takes precedence over user settings and environment variables ([#13284](https://github.com/can1357/oh-my-pi/pull/13284) by [@CallumWayve](https://github.com/CallumWayve)).
+- `share.enabled` can disable session sharing, including direct API calls ([#13284](https://github.com/can1357/oh-my-pi/pull/13284) by [@CallumWayve](https://github.com/CallumWayve)).
+- `collab.enabled` can disable collaboration hosting and joining ([#13284](https://github.com/can1357/oh-my-pi/pull/13284) by [@CallumWayve](https://github.com/CallumWayve)).
+
 ## [18.4.2] - 2026-09-28
 
 ### Added
