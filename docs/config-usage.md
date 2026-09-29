@@ -167,7 +167,7 @@ Outside machine policy, a configured value that does not fit the declared type (
 
 Effective precedence, highest first:
 
-1. Machine-managed `config.yml` (optional, read-only): `/etc/omp/config.yml` on Linux, `/Library/Application Support/omp/config.yml` on macOS, and `omp\config.yml` under the Windows ProgramData known folder (resolved by the OS, not the `ProgramData` environment variable). It overrides every other layer, including environment variables.
+1. Machine-managed `config.yml` (optional, read-only): `/etc/omp/config.yml` on Linux, `/Library/Application Support/omp/config.yml` on macOS, and the fixed `C:\ProgramData\omp\config.yml` path on Windows (independent of the `ProgramData` environment variable). Windows installations that relocate ProgramData must provision policy at this fixed path. It overrides every other layer, including environment variables.
 2. Environment variable declared on the definition (`env: "NAME"`), parsed by the setting's type; unparseable text counts as unset. Booleans follow `parseFlag`: empty is unset, `1`/`y`/`true`/`yes`/`on` (lower or upper case) is true, any other text is false
 3. Runtime overrides: in-memory, non-persistent
 4. Config overlays: `PI_CONFIG_FILES` (platform path-list), followed by repeated `omp --config <path>` files; all are loaded as `config.yml`-style YAML for this process only

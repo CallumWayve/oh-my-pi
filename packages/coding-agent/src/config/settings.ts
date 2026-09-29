@@ -26,7 +26,6 @@ import {
 	MAIN_CONFIG_FILENAMES,
 	procmgr,
 } from "@oh-my-pi/pi-utils";
-import { machineProgramDataDir } from "@oh-my-pi/pi-natives";
 import { withFileLock } from "@oh-my-pi/pi-utils/file-lock";
 import { isLightTheme } from "@oh-my-pi/pi-tui/theme/theme";
 import { JSONC, YAML } from "bun";
@@ -396,7 +395,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  * Get the platform-specific path to the machine policy config.
  * Linux: /etc/omp/config.yml
  * macOS: /Library/Application Support/omp/config.yml (system, not user-writable)
- * Windows: ProgramData known folder/omp/config.yml (resolved by the OS)
+ * Windows: C:\ProgramData\omp\config.yml (fixed path, independent of environment variables)
  */
 function getManagedConfigPath(): string {
 	switch (process.platform) {
@@ -405,7 +404,7 @@ function getManagedConfigPath(): string {
 		case "darwin":
 			return path.join("/Library", "Application Support", "omp", "config.yml");
 		case "win32":
-			return path.join(machineProgramDataDir(), "omp", "config.yml");
+			return "C:\\ProgramData\\omp\\config.yml";
 		default:
 			return `/etc/omp/config.yml`;
 	}
